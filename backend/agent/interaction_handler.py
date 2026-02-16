@@ -16,17 +16,26 @@ class InteractionHandler:
         try:
             activity_logger.log_activity("Like", "Attempting to like video")
             
-            # Strategy 1: Specific Like Button Containers (New Layouts)
-            like_selectors = [
-                '#segmented-like-button button', 
-                'like-button-view-model button',
-                'ytd-segmented-like-dislike-button-renderer button[aria-label*="Gostei"]',
-                'ytd-segmented-like-dislike-button-renderer button[aria-label*="Like"]',
-                'button[aria-label^="Gostei de"]',
-                'button[aria-label^="Like this video"]',
-                '#top-level-buttons-computed > ytd-toggle-button-renderer:first-child button', # Old layout
-                'button[aria-label="Gosto"]' # PT-PT fallbak
-            ]
+            # Check if we are in Shorts mode
+            is_shorts = "/shorts/" in self.browser.page.url
+            
+            # Strategy 1: Layout Specific Selectors
+            like_selectors = []
+            if is_shorts:
+                like_selectors = [
+                    'ytd-reel-player-overlay-renderer #like-button button',
+                    '#like-button button[aria-label*="Gostei"]',
+                    '#like-button button[aria-label*="Like"]'
+                ]
+            else:
+                like_selectors = [
+                    '#segmented-like-button button', 
+                    'like-button-view-model button',
+                    'ytd-segmented-like-dislike-button-renderer button[aria-label*="Gostei"]',
+                    'ytd-segmented-like-dislike-button-renderer button[aria-label*="Like"]',
+                    'button[aria-label^="Gostei de"]',
+                    'button[aria-label^="Like this video"]'
+                ]
             
             like_button = None
             for selector in like_selectors:
@@ -38,11 +47,12 @@ class InteractionHandler:
                 except: continue
             
             if not like_button:
-                # Strategy 2: XPath Fallback
+                # Strategy 2: XPath Fallback (Generic for both layouts)
                 try:
                      xpath_selectors = [
                          '//button[contains(@aria-label, "Gostei")]',
-                         '//button[contains(@aria-label, "like this video")]'
+                         '//button[contains(@aria-label, "like this video")]',
+                         '//ytd-reel-player-overlay-renderer//button[contains(@aria-label, "Gostei")]'
                      ]
                      for xpath in xpath_selectors:
                          try:
@@ -79,18 +89,34 @@ class InteractionHandler:
         try:
             activity_logger.log_activity("Comment", "Preparing to comment")
             
-            await self.browser.page.evaluate("window.scrollTo(0, 800)")
-            await asyncio.sleep(random.uniform(1, 2))
+            is_shorts = "/shorts/" in self.browser.page.url
             
+            if is_shorts:
+                # In Shorts, we need to open the comment panel first
+                try:
+                    comment_panel_btn = await self.browser.page.wait_for_selector(
+                        'ytd-reel-player-overlay-renderer #comments-button button',
+                        timeout=3000
+                    )
+                    await comment_panel_btn.click()
+                    await asyncio.sleep(2)
+                except:
+                    activity_logger.log_activity("Comment", "Could not open Shorts comment panel", "warning")
+
+            else:
+                await self.browser.page.evaluate("window.scrollTo(0, 800)")
+                await asyncio.sleep(random.uniform(1, 2))
+            
+            # Common comment box selectors
             comment_box = await self.browser.page.wait_for_selector(
-                'ytd-comment-simplebox-renderer div#placeholder-area',
+                'ytd-comment-simplebox-renderer div#placeholder-area, #comment-section-renderer #placeholder-area',
                 timeout=5000
             )
             await comment_box.click()
             await asyncio.sleep(random.uniform(0.5, 1))
             
             text_area = await self.browser.page.wait_for_selector(
-                'ytd-comment-simplebox-renderer div#contenteditable-root',
+                'ytd-comment-simplebox-renderer div#contenteditable-root, #comment-section-renderer #contenteditable-root',
                 timeout=5000
             )
             
@@ -132,6 +158,13 @@ class InteractionHandler:
             await submit_button.click()
             await asyncio.sleep(random.uniform(1, 2))
             
+            if is_shorts:
+                # Close panel (optional, but keeps UI clean)
+                try:
+                    close_btn = await self.browser.page.query_selector('ytd-engagement-panel-section-list-renderer #close-button')
+                    if close_btn: await close_btn.click()
+                except: pass
+
             activity_logger.log_activity("Comment", f"Posted: {comment[:50]}...")
             return True
             

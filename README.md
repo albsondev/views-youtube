@@ -25,7 +25,7 @@ playwright install chromium
 python main.py
 ```
 
-Backend runs on `http://localhost:8000`
+Backend runs on `http://localhost:8002`
 
 ### Frontend Setup
 

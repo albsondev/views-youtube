@@ -105,18 +105,24 @@ class VideoWatcher:
     
     async def get_video_info(self) -> dict:
         try:
-            title = await self.browser.page.text_content('h1.ytd-video-primary-info-renderer')
+            # Try standard layout
+            title_selector = 'h1.ytd-video-primary-info-renderer, yt-formatted-string.ytd-video-primary-info-renderer'
+            title_element = await self.browser.page.query_selector(title_selector)
+            
+            # Try Shorts layout fallback
+            if not title_element:
+                title_element = await self.browser.page.query_selector('ytd-reel-player-overlay-renderer h2.title, ytd-reel-player-overlay-renderer yt-formatted-string.title')
+            
+            title = await title_element.text_content() if title_element else ""
             
             description_element = await self.browser.page.query_selector(
-                'ytd-text-inline-expander#description-inline-expander'
+                'ytd-text-inline-expander#description-inline-expander, ytd-reel-player-overlay-renderer #description'
             )
-            description = ""
-            if description_element:
-                description = await description_element.text_content()
+            description = await description_element.text_content() if description_element else ""
             
             return {
-                'title': title.strip() if title else "",
-                'description': description.strip() if description else ""
+                'title': title.strip(),
+                'description': description.strip()
             }
             
         except Exception as e:

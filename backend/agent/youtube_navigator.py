@@ -135,42 +135,65 @@ class YouTubeNavigator:
         try:
             activity_logger.log_activity("Videos", f"Fetching up to {limit} videos")
             
-            videos_tab = await self.browser.page.wait_for_selector(
-                'yt-tab-shape:has-text("Vídeos"), yt-tab-shape:has-text("Videos")',
-                timeout=5000
-            )
-            await videos_tab.click()
-            await asyncio.sleep(2)
-            
-            await self.browser.page.evaluate("window.scrollTo(0, 500)")
-            await asyncio.sleep(1)
-            
-            video_elements = await self.browser.page.query_selector_all(
-                'ytd-rich-item-renderer a#video-title-link'
-            )
+            # Try to find "Videos" tab first, fallback to "Shorts"
+            tabs_to_try = [
+                {'text': 'Vídeos', 'selector': 'yt-tab-shape:has-text("Vídeos"), yt-tab-shape:has-text("Videos")'},
+                {'text': 'Shorts', 'selector': 'yt-tab-shape:has-text("Shorts")'}
+            ]
             
             videos = []
-            for element in video_elements[:limit]:
+            for tab_info in tabs_to_try:
                 try:
-                    title = await element.get_attribute('title')
-                    url = await element.get_attribute('href')
-                    
-                    if title and url:
-                        full_url = f"https://www.youtube.com{url}" if url.startswith('/') else url
-                        videos.append({
-                            'title': title,
-                            'url': full_url
-                        })
+                    tab = await self.browser.page.wait_for_selector(tab_info['selector'], timeout=3000)
+                    if tab:
+                        activity_logger.log_activity("Videos", f"Switching to {tab_info['text']} tab")
+                        await tab.click()
+                        await asyncio.sleep(2)
+                        
+                        # Scroll to load more if needed
+                        await self.browser.page.evaluate("window.scrollTo(0, 500)")
+                        await asyncio.sleep(1)
+                        
+                        # Extract videos based on tab type
+                        if tab_info['text'] == 'Shorts':
+                            # Shorts selectors
+                            video_elements = await self.browser.page.query_selector_all(
+                                'ytd-rich-item-renderer a[href*="/shorts/"], ytd-reel-item-renderer a'
+                            )
+                        else:
+                            # Standard video selectors
+                            video_elements = await self.browser.page.query_selector_all(
+                                'ytd-rich-item-renderer a#video-title-link'
+                            )
+                        
+                        for element in video_elements[:limit]:
+                            try:
+                                # For shorts we might need to get the href and construct a title if title is missing
+                                url = await element.get_attribute('href')
+                                title = await element.get_attribute('title') or f"Short Video {url.split('/')[-1]}"
+                                
+                                if url:
+                                    full_url = f"https://www.youtube.com{url}" if url.startswith('/') else url
+                                    # Dedup
+                                    if not any(v['url'] == full_url for v in videos):
+                                        videos.append({
+                                            'title': title,
+                                            'url': full_url
+                                        })
+                            except: continue
+                        
+                        if videos:
+                            break # Found videos in this tab
                 except:
-                    continue
+                    continue # Try next tab
             
-            activity_logger.log_activity("Videos", f"Found {len(videos)} videos")
+            activity_logger.log_activity("Videos", f"Found {len(videos)} videos total")
             return videos
             
         except Exception as e:
             activity_logger.log_activity(
                 "Videos", 
-                f"Failed to fetch: {str(e)}", 
+                f"Failed to fetch videos: {str(e)}", 
                 "error"
             )
             return []
