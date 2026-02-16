@@ -150,42 +150,42 @@ class YouTubeNavigator:
                         await tab.click()
                         await asyncio.sleep(2)
                         
-                        # Scroll to load more if needed
-                        await self.browser.page.evaluate("window.scrollTo(0, 500)")
-                        await asyncio.sleep(1)
+                        # Scroll multiple times to load more videos (especially Shorts)
+                        for i in range(3):
+                            activity_logger.log_activity("Videos", f"Scrolling to load more ({i+1}/3)")
+                            await self.browser.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                            await asyncio.sleep(2)
                         
                         # Extract videos based on tab type
                         if tab_info['text'] == 'Shorts':
-                            # Shorts selectors
                             video_elements = await self.browser.page.query_selector_all(
                                 'ytd-rich-item-renderer a[href*="/shorts/"], ytd-reel-item-renderer a'
                             )
                         else:
-                            # Standard video selectors
                             video_elements = await self.browser.page.query_selector_all(
                                 'ytd-rich-item-renderer a#video-title-link'
                             )
                         
-                        for element in video_elements[:limit]:
+                        found_videos = []
+                        for element in video_elements:
                             try:
-                                # For shorts we might need to get the href and construct a title if title is missing
                                 url = await element.get_attribute('href')
                                 title = await element.get_attribute('title') or f"Short Video {url.split('/')[-1]}"
                                 
                                 if url:
                                     full_url = f"https://www.youtube.com{url}" if url.startswith('/') else url
-                                    # Dedup
-                                    if not any(v['url'] == full_url for v in videos):
-                                        videos.append({
-                                            'title': title,
-                                            'url': full_url
-                                        })
+                                    if not any(v['url'] == full_url for v in found_videos):
+                                        found_videos.append({'title': title, 'url': full_url})
                             except: continue
                         
-                        if videos:
-                            break # Found videos in this tab
+                        if found_videos:
+                            # Shuffle for randomness as requested
+                            random.shuffle(found_videos)
+                            activity_logger.log_activity("Videos", f"Found and shuffled {len(found_videos)} videos")
+                            videos = found_videos[:limit]
+                            break 
                 except:
-                    continue # Try next tab
+                    continue
             
             activity_logger.log_activity("Videos", f"Found {len(videos)} videos total")
             return videos

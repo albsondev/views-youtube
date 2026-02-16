@@ -132,35 +132,40 @@ class YouTubeAgent:
                     activity_logger.log_activity("Agent", "Automation stopped by user")
                     break
                 
-                # Health Check
-                if not self.browser.is_healthy():
-                    activity_logger.log_activity("Agent", "Browser crashed, attempting to recover...", "error")
-                    # We could try to restart, but it breaks the flow. Better to abort cleanly.
-                    self.status = AgentStatus.ERROR 
-                    return
-                
-                self.current_task = f"Processing video {idx}/{len(videos)}"
-                
-                # Verify login BEFORE starting any navigation
-                # ... (rest of code)
-                
-                # Ensure we are still logged in before starting actions
-                if not await self.account_manager.ensure_logged_in():
-                    activity_logger.log_activity("Agent", "Lost login session and failed to restore. Skipping actions.", "error")
+                try:
+                    # Health Check
+                    if not self.browser.is_healthy():
+                        activity_logger.log_activity("Agent", "Browser crashed, attempting to recover...", "error")
+                        self.status = AgentStatus.ERROR 
+                        return
+                    
+                    self.current_task = f"Processing video {idx}/{len(videos)}"
+                    
+                    # Ensure we are still logged in before starting actions
+                    if not await self.account_manager.ensure_logged_in():
+                        activity_logger.log_activity("Agent", "Lost login session and failed to restore. Skipping actions.", "error")
+                        continue
+                    
+                    await self.watcher.watch_video(video['url'])
+                    
+                    if should_like:
+                        await self.interaction.random_delay()
+                        await self.interaction.like_video()
+                    
+                    if should_comment:
+                        await self.interaction.random_delay()
+                        video_info = await self.watcher.get_video_info()
+                        await self.interaction.post_comment(video_info.get('title', ''))
+                    
+                    await self.interaction.random_delay()
+                except Exception as video_error:
+                    activity_logger.log_activity(
+                        "Agent", 
+                        f"Error processing video {idx}: {str(video_error)}", 
+                        "error"
+                    )
+                    # Continue to next video if one fails
                     continue
-                
-                await self.watcher.watch_video(video['url'])
-                
-                if should_like:
-                    await self.interaction.random_delay()
-                    await self.interaction.like_video()
-                
-                if should_comment:
-                    await self.interaction.random_delay()
-                    video_info = await self.watcher.get_video_info()
-                    await self.interaction.post_comment(video_info.get('title', ''))
-                
-                await self.interaction.random_delay()
             
             activity_logger.log_activity(
                 "Agent", 

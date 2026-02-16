@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import './Dashboard.css';
 
@@ -14,6 +14,22 @@ export default function Dashboard() {
     });
     const [credentials, setCredentials] = useState({ email: '', password: '' });
     const [showLogin, setShowLogin] = useState(false);
+    const logEndRef = useRef(null);
+
+    // Persistence: Load saved URL on mount
+    useEffect(() => {
+        const savedUrl = localStorage.getItem('youtube_automation_channel_url');
+        if (savedUrl) {
+            setConfig(prev => ({ ...prev, channel_url: savedUrl }));
+        }
+    }, []);
+
+    // Auto-scroll logic
+    useEffect(() => {
+        if (logEndRef.current) {
+            logEndRef.current.scrollTop = logEndRef.current.scrollHeight;
+        }
+    }, [activities]);
 
     useEffect(() => {
         loadStatus();
@@ -159,7 +175,11 @@ export default function Dashboard() {
                                 type="text"
                                 placeholder="https://www.youtube.com/@channel"
                                 value={config.channel_url}
-                                onChange={(e) => setConfig({ ...config, channel_url: e.target.value })}
+                                onChange={(e) => {
+                                    const newUrl = e.target.value;
+                                    setConfig({ ...config, channel_url: newUrl });
+                                    localStorage.setItem('youtube_automation_channel_url', newUrl);
+                                }}
                             />
                         </label>
 
@@ -230,7 +250,7 @@ export default function Dashboard() {
                         Clear
                     </button>
                 </div>
-                <div className="log-content">
+                <div className="log-content" ref={logEndRef}>
                     {activities.length === 0 ? (
                         <p className="empty-state">No activities yet</p>
                     ) : (

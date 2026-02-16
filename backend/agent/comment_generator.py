@@ -8,26 +8,26 @@ class CommentGenerator:
     def __init__(self):
         self.templates = {
             'positive': [
-                "Excelente conteúdo! Muito útil.",
-                "Adorei o vídeo, continue assim!",
-                "Conteúdo de qualidade, parabéns!",
-                "Muito bom, aprendi bastante!",
-                "Ótimo trabalho, já compartilhei!",
-                "Incrível! Esperando o próximo vídeo.",
-                "Conteúdo top! Valeu pela explicação.",
-                "Muito esclarecedor, obrigado!",
+                "Excelente conteúdo sobre {topic}! Muito útil.",
+                "Adorei esse vídeo de {topic}, continue assim!",
+                "Conteúdo de qualidade sobre {topic}, parabéns!",
+                "Muito bom esse vídeo sobre {topic}, aprendi bastante!",
+                "Ótimo trabalho falando de {topic}!",
+                "Incrível! Esperando o próximo sobre {topic}.",
+                "Conteúdo top sobre {topic}! Valeu pela explicação.",
+                "Muito esclarecedor esse vídeo de {topic}, obrigado!",
             ],
             'question': [
-                "Poderia fazer um vídeo sobre {topic}?",
-                "Tem algum material complementar sobre isso?",
+                "Poderia fazer um vídeo mais detalhado sobre {topic}?",
+                "Tem algum material complementar sobre {topic}?",
                 "Onde posso aprender mais sobre {topic}?",
-                "Qual ferramenta você recomenda para isso?",
+                "Qual ferramenta você recomenda para usar com {topic}?",
             ],
             'engagement': [
-                "Primeira vez aqui, já me inscrevi!",
-                "Vim pela recomendação e não me arrependi!",
-                "Esse canal é uma joia escondida!",
-                "Merece muito mais visualizações!",
+                "Primeira vez aqui vendo {topic}, já me inscrevi!",
+                "Vim pela recomendação de {topic} e não me arrependi!",
+                "O jeito que você explicou {topic} é sensacional!",
+                "Esse vídeo de {topic} merece muito mais visualizações!",
             ]
         }
     
@@ -37,11 +37,11 @@ class CommentGenerator:
         
         template = random.choice(self.templates.get(category, self.templates['positive']))
         
-        if '{topic}' in template and video_title:
-            topic = self._extract_topic(video_title)
+        topic = self._extract_topic(video_title)
+        if '{topic}' in template:
             comment = template.format(topic=topic)
         else:
-            comment = template
+            comment = f"{template} {topic}" if topic != "este vídeo" else template
         
         comment = self._add_variation(comment)
         
@@ -53,10 +53,19 @@ class CommentGenerator:
         return comment
     
     def _extract_topic(self, title: str) -> str:
-        words = title.split()
-        if len(words) > 3:
+        if not title:
+            return "este vídeo"
+            
+        # Remove common stop words or channel markers for better context
+        clean_title = title.lower()
+        to_remove = ["shorts", "short", "video", "vídeo", "#", "@"]
+        for word in to_remove:
+            clean_title = clean_title.replace(word, "")
+            
+        words = clean_title.strip().split()
+        if len(words) >= 3:
             return ' '.join(words[:3])
-        return title
+        return clean_title.strip() or "este assunto"
     
     def _add_variation(self, comment: str) -> str:
         variations = [
